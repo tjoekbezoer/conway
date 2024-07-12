@@ -1,44 +1,37 @@
 package main
 
-var data = `
- x
-xx
- xx
-`
+import (
+	"bytes"
+	"io"
+	"log"
+	"os"
+	"strings"
+)
 
 type Game struct {
 	w, h  int
-	Cells [][]bool
+	Cells World
 }
-
+type World [][]bool
 type LoopFunc func(x, y int, value bool)
 
 func NewGame(w, h int) *Game {
-	// state := convertFile(data)
-
 	return &Game{
 		w:     w,
 		h:     h,
-		Cells: makeWorld(w, h),
+		Cells: initWorld(w, h),
 	}
 }
 
+// Tick performs the cell calculations for this generation
 func (g *Game) Tick() {
 	newWorld := makeWorld(g.w, g.h)
 
-	g.LoopCells(func(x, y int, v bool) {
+	LoopCells(g.Cells, func(x, y int, v bool) {
 		newWorld[y][x] = g.calcCell(x, y)
 	})
 
 	g.Cells = newWorld
-}
-
-func (g *Game) LoopCells(handler LoopFunc) {
-	for y, row := range g.Cells {
-		for x, v := range row {
-			handler(x, y, v)
-		}
-	}
 }
 
 func (g *Game) calcCell(x, y int) bool {
@@ -81,15 +74,80 @@ func (g *Game) cell(x, y int) int {
 	}
 }
 
-// func convertFile(data string) ([][]bool, int, int) {
-// 	lines := strings.Split(data, "\n")
-// 	h := len(lines)
-//
-// 	res := make([][]byte)
-// 	for i := range lines {
-// 		res.
-// 	}
-// }
+func LoopCells(cells World, handler LoopFunc) {
+	for y, row := range cells {
+		for x, v := range row {
+			handler(x, y, v)
+		}
+	}
+}
+
+func readFile(fileName string) (World, int, int) {
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Panic(err)
+		}
+	}()
+
+	// Read in the game file, splitting it up into lines
+	// for processing.
+	data := make([]byte, 0)
+	buf := make([]byte, 1024)
+	for {
+		n, err := file.Read(buf)
+		if err == nil && n > 0 {
+			data = append(data, buf[:n]...)
+		} else if err != io.EOF {
+			log.Panic(err)
+		} else {
+			break
+		}
+	}
+	data = bytes.Trim(data, "\n")
+	lines := strings.Split(string(data), "\n")
+
+	// Build a World data structure from the split string lines.
+	h := len(lines)
+	w := 0
+	res := make(World, h)
+	for i := range lines {
+		cw := len(lines[i])
+		w = max(w, cw)
+		res[i] = make([]bool, cw)
+
+		for j := range lines[i] {
+			cell := false
+			if lines[i][j] != ' ' {
+				cell = true
+			}
+			res[i][j] = cell
+		}
+	}
+
+	return res, w, h
+}
+
+func initWorld(w, h int) [][]bool {
+	start, gw, gh := readFile("game.txt")
+	cw := (w - gw) / 2
+	ch := (h - gh) / 2
+	world := makeWorld(w, h)
+
+	// Copy the game from file to the in-memory world, centering
+	// the starting game in the process.
+	LoopCells(world, func(x, y int, _ bool) {
+		if y >= ch && y-ch < len(start) && x >= cw && x-cw < len(start[y-ch]) {
+			world[y][x] = start[y-ch][x-cw]
+		}
+	})
+
+	return world
+}
 
 func makeWorld(w, h int) [][]bool {
 	cells := make([][]bool, h)
@@ -97,13 +155,6 @@ func makeWorld(w, h int) [][]bool {
 	for i := range cells {
 		cells[i] = make([]bool, w)
 	}
-
-	// temp creation
-	cells[25+0][25+1] = true
-	cells[25+1][25+0] = true
-	cells[25+1][25+1] = true
-	cells[25+2][25+1] = true
-	cells[25+2][25+2] = true
 
 	return cells
 }

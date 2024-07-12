@@ -56,14 +56,13 @@ func main() {
 	// Main loop
 	for {
 		g.Tick()
-		g.LoopCells(func(x, y int, v bool) {
+		LoopCells(g.Cells, func(x, y int, v bool) {
 			DrawCell(s, x, y, v)
 		})
-
 		s.Show()
 
 		select {
-		case <-time.After(25 * time.Millisecond):
+		case <-time.After(60 * time.Millisecond):
 		case <-quit:
 			return
 		}
